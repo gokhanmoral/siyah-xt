@@ -6,6 +6,7 @@
  * Copyright (c) 2002-2003, Jouni Malinen <jkmaline@cc.hut.fi>
  * Copyright (c) 2005, Devicescape Software, Inc.
  * Copyright (c) 2006, Michael Wu <flamingice@sourmilk.net>
+ * Copyright (C) 2012 Sony Mobile Communications AB.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -1305,6 +1306,7 @@ enum ieee80211_key_len {
 	WLAN_KEY_LEN_CCMP = 16,
 	WLAN_KEY_LEN_TKIP = 32,
 	WLAN_KEY_LEN_AES_CMAC = 16,
+	WLAN_KEY_LEN_WAPI_SMS4 = 32,
 };
 
 /**
@@ -1434,12 +1436,21 @@ enum ieee80211_sa_query_action {
 #define WLAN_CIPHER_SUITE_CCMP		0x000FAC04
 #define WLAN_CIPHER_SUITE_WEP104	0x000FAC05
 #define WLAN_CIPHER_SUITE_AES_CMAC	0x000FAC06
+#ifdef CONFIG_MACH_BCM_DRIVER
+#define WLAN_CIPHER_SUITE_SMS4		0x000FAC07
+#else
+#define WLAN_CIPHER_SUITE_SMS4		0x00147201
+#endif
 
 /* AKM suite selectors */
 #define WLAN_AKM_SUITE_8021X		0x000FAC01
 #define WLAN_AKM_SUITE_PSK		0x000FAC02
 #define WLAN_AKM_SUITE_SAE			0x000FAC08
 #define WLAN_AKM_SUITE_FT_OVER_SAE	0x000FAC09
+#ifdef CONFIG_MACH_BCM_DRIVER
+#define WLAN_AKM_SUITE_WAPI_PSK		0x000FAC04
+#define WLAN_AKM_SUITE_WAPI_CERT	0x000FAC12
+#endif
 
 #define WLAN_MAX_KEY_LEN		32
 

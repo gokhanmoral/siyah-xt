@@ -33,6 +33,38 @@ enum usb_otg_state {
 	OTG_STATE_A_PERIPHERAL,
 	OTG_STATE_A_WAIT_VFALL,
 	OTG_STATE_A_VBUS_ERR,
+
+	/* MHL */
+	OTG_STATE_MHL_DETECTED,
+	OTG_STATE_MHL_CONNECTED,
+};
+
+enum usb_otg_event {
+	/* Device is not connected within
+	 * TA_WAIT_BCON or not responding.
+	 */
+	OTG_EVENT_DEV_CONN_TMOUT,
+	/* B-device returned STALL for
+	 * B_HNP_ENABLE feature request.
+	 */
+	OTG_EVENT_NO_RESP_FOR_HNP_ENABLE,
+	/* HUB class devices are not
+	 * supported.
+	 */
+	OTG_EVENT_HUB_NOT_SUPPORTED,
+	/* Device is not supported i.e
+	 * not listed in TPL.
+	 */
+	OTG_EVENT_DEV_NOT_SUPPORTED,
+	/* HNP failed due to
+	 * TA_AIDL_BDIS timeout or
+	 * TB_ASE0_BRST timeout
+	 */
+	OTG_EVENT_HNP_FAILED,
+	/* B-device did not detect VBUS
+	 * within TB_SRP_FAIL time.
+	 */
+	OTG_EVENT_NO_RESP_FOR_SRP,
 };
 
 enum usb_xceiv_events {
@@ -111,6 +143,16 @@ struct otg_transceiver {
 	/* start or continue HNP role switch */
 	int	(*start_hnp)(struct otg_transceiver *otg);
 
+	/* send events to user space */
+	int	(*send_event)(struct otg_transceiver *otg,
+			enum usb_otg_event event);
+
+	/* start to recheck charger type to avoid miss detection */
+	void	(*start_recheck_chgtype)(struct otg_transceiver *otg,
+			unsigned long delay);
+
+	/* stop to recheck charger type */
+	void	(*stop_recheck_chgtype)(struct otg_transceiver *otg);
 };
 
 
@@ -163,6 +205,10 @@ otg_shutdown(struct otg_transceiver *otg)
 	if (otg->shutdown)
 		otg->shutdown(otg);
 }
+
+/* for USB core, host and peripheral controller drivers */
+/* Context: can sleep */
+extern int otg_send_event(enum usb_otg_event event);
 
 /* for usb host and peripheral controller drivers */
 #ifdef CONFIG_USB_OTG_UTILS
@@ -248,6 +294,19 @@ static inline void
 otg_unregister_notifier(struct otg_transceiver *otg, struct notifier_block *nb)
 {
 	atomic_notifier_chain_unregister(&otg->notifier, nb);
+}
+
+/* workaround for charger type miss detection */
+static inline void
+otg_start_recheck_chgtype(struct otg_transceiver *otg, unsigned long delay)
+{
+	return otg->start_recheck_chgtype(otg, delay);
+}
+
+static inline void
+otg_stop_recheck_chgtype(struct otg_transceiver *otg)
+{
+	return otg->stop_recheck_chgtype(otg);
 }
 
 /* for OTG controller drivers (and maybe other stuff) */

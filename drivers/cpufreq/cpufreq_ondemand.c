@@ -22,6 +22,7 @@
 #include <linux/tick.h>
 #include <linux/ktime.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
 
 /*
  * dbs is used in this file as a shortform for demandbased switching
@@ -37,6 +38,7 @@
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
+#define MIN_FREQUENCY_DOWN_DIFFERENTIAL		(1)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -55,6 +57,9 @@ static unsigned int min_sampling_rate;
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
+
+#define POWERSAVE_BIAS_MAXLEVEL			(1000)
+#define POWERSAVE_BIAS_MINLEVEL			(-1000)
 
 static void do_dbs_timer(struct work_struct *work);
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
@@ -96,6 +101,9 @@ struct cpu_dbs_info_s {
 };
 static DEFINE_PER_CPU(struct cpu_dbs_info_s, od_cpu_dbs_info);
 
+static inline void dbs_timer_init(struct cpu_dbs_info_s *dbs_info);
+static inline void dbs_timer_exit(struct cpu_dbs_info_s *dbs_info);
+
 static unsigned int dbs_enable;	/* number of CPUs using this policy */
 
 /*
@@ -109,7 +117,7 @@ static struct dbs_tuners {
 	unsigned int down_differential;
 	unsigned int ignore_nice;
 	unsigned int sampling_down_factor;
-	unsigned int powersave_bias;
+	int          powersave_bias;
 	unsigned int io_is_busy;
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
@@ -171,10 +179,11 @@ static unsigned int powersave_bias_target(struct cpufreq_policy *policy,
 					  unsigned int freq_next,
 					  unsigned int relation)
 {
-	unsigned int freq_req, freq_reduc, freq_avg;
+	unsigned int freq_req, freq_avg;
 	unsigned int freq_hi, freq_lo;
 	unsigned int index = 0;
 	unsigned int jiffies_total, jiffies_hi, jiffies_lo;
+	int freq_reduc;
 	struct cpu_dbs_info_s *dbs_info = &per_cpu(od_cpu_dbs_info,
 						   policy->cpu);
 
@@ -217,6 +226,26 @@ static unsigned int powersave_bias_target(struct cpufreq_policy *policy,
 	return freq_hi;
 }
 
+static int ondemand_powersave_bias_setspeed(struct cpufreq_policy *policy,
+					    struct cpufreq_policy *altpolicy,
+					    int level)
+{
+	if (level == POWERSAVE_BIAS_MAXLEVEL) {
+		/* maximum powersave; set to lowest frequency */
+		__cpufreq_driver_target(policy,
+			(altpolicy) ? altpolicy->min : policy->min,
+			CPUFREQ_RELATION_L);
+		return 1;
+	} else if (level == POWERSAVE_BIAS_MINLEVEL) {
+		/* minimum powersave; set to highest frequency */
+		__cpufreq_driver_target(policy,
+			(altpolicy) ? altpolicy->max : policy->max,
+			CPUFREQ_RELATION_H);
+		return 1;
+	}
+	return 0;
+}
+
 static void ondemand_powersave_bias_init_cpu(int cpu)
 {
 	struct cpu_dbs_info_s *dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
@@ -252,9 +281,15 @@ static ssize_t show_##file_name						\
 show_one(sampling_rate, sampling_rate);
 show_one(io_is_busy, io_is_busy);
 show_one(up_threshold, up_threshold);
+show_one(down_differential, down_differential);
 show_one(sampling_down_factor, sampling_down_factor);
 show_one(ignore_nice_load, ignore_nice);
-show_one(powersave_bias, powersave_bias);
+
+static ssize_t show_powersave_bias
+(struct kobject *kobj, struct attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", dbs_tuners_ins.powersave_bias);
+}
 
 static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
@@ -293,6 +328,23 @@ static ssize_t store_up_threshold(struct kobject *a, struct attribute *b,
 		return -EINVAL;
 	}
 	dbs_tuners_ins.up_threshold = input;
+	return count;
+}
+
+static ssize_t store_down_differential(struct kobject *a, struct attribute *b,
+		const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if (ret != 1 || input >= dbs_tuners_ins.up_threshold ||
+			input < MIN_FREQUENCY_DOWN_DIFFERENTIAL) {
+		return -EINVAL;
+	}
+
+	dbs_tuners_ins.down_differential = input;
+
 	return count;
 }
 
@@ -352,24 +404,82 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 static ssize_t store_powersave_bias(struct kobject *a, struct attribute *b,
 				    const char *buf, size_t count)
 {
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
+	int input  = 0;
+	int bypass = 0;
+	int ret, cpu, reenable_timer;
+	struct cpu_dbs_info_s *dbs_info;
+
+	ret = sscanf(buf, "%d", &input);
 
 	if (ret != 1)
 		return -EINVAL;
 
-	if (input > 1000)
-		input = 1000;
+	if (input >= POWERSAVE_BIAS_MAXLEVEL) {
+		input  = POWERSAVE_BIAS_MAXLEVEL;
+		bypass = 1;
+	} else if (input <= POWERSAVE_BIAS_MINLEVEL) {
+		input  = POWERSAVE_BIAS_MINLEVEL;
+		bypass = 1;
+	}
+
+	if (input == dbs_tuners_ins.powersave_bias) {
+		/* no change */
+		return count;
+	}
+
+	reenable_timer = ((dbs_tuners_ins.powersave_bias ==
+				POWERSAVE_BIAS_MAXLEVEL) ||
+				(dbs_tuners_ins.powersave_bias ==
+				POWERSAVE_BIAS_MINLEVEL));
 
 	dbs_tuners_ins.powersave_bias = input;
-	ondemand_powersave_bias_init();
+	if (!bypass) {
+		if (reenable_timer) {
+			/* reinstate dbs timer */
+			for_each_online_cpu(cpu) {
+				if (lock_policy_rwsem_write(cpu) < 0)
+					continue;
+
+				dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
+				if (dbs_info->cur_policy) {
+					/* restart dbs timer */
+					dbs_timer_init(dbs_info);
+				}
+				unlock_policy_rwsem_write(cpu);
+			}
+		}
+		ondemand_powersave_bias_init();
+	} else {
+		/* running at maximum or minimum frequencies; cancel
+		   dbs timer as periodic load sampling is not necessary */
+		for_each_online_cpu(cpu) {
+			if (lock_policy_rwsem_write(cpu) < 0)
+				continue;
+
+			dbs_info = &per_cpu(od_cpu_dbs_info, cpu);
+			if (dbs_info->cur_policy) {
+				/* cpu using ondemand, cancel dbs timer */
+				mutex_lock(&dbs_info->timer_mutex);
+				dbs_timer_exit(dbs_info);
+
+				ondemand_powersave_bias_setspeed(
+					dbs_info->cur_policy,
+					NULL,
+					input);
+
+				mutex_unlock(&dbs_info->timer_mutex);
+			}
+			unlock_policy_rwsem_write(cpu);
+		}
+	}
+
 	return count;
 }
 
 define_one_global_rw(sampling_rate);
 define_one_global_rw(io_is_busy);
 define_one_global_rw(up_threshold);
+define_one_global_rw(down_differential);
 define_one_global_rw(sampling_down_factor);
 define_one_global_rw(ignore_nice_load);
 define_one_global_rw(powersave_bias);
@@ -378,6 +488,7 @@ static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
 	&sampling_rate.attr,
 	&up_threshold.attr,
+	&down_differential.attr,
 	&sampling_down_factor.attr,
 	&ignore_nice_load.attr,
 	&powersave_bias.attr,
@@ -681,7 +792,12 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		mutex_unlock(&dbs_mutex);
 
 		mutex_init(&this_dbs_info->timer_mutex);
-		dbs_timer_init(this_dbs_info);
+
+		if (!ondemand_powersave_bias_setspeed(
+					this_dbs_info->cur_policy,
+					NULL,
+					dbs_tuners_ins.powersave_bias))
+			dbs_timer_init(this_dbs_info);
 		break;
 
 	case CPUFREQ_GOV_STOP:
@@ -690,6 +806,9 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		mutex_lock(&dbs_mutex);
 		mutex_destroy(&this_dbs_info->timer_mutex);
 		dbs_enable--;
+		/* If device is being removed, policy is no longer
+		 * valid. */
+		this_dbs_info->cur_policy = NULL;
 		mutex_unlock(&dbs_mutex);
 		if (!dbs_enable)
 			sysfs_remove_group(cpufreq_global_kobject,
@@ -705,6 +824,11 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		else if (policy->min > this_dbs_info->cur_policy->cur)
 			__cpufreq_driver_target(this_dbs_info->cur_policy,
 				policy->min, CPUFREQ_RELATION_L);
+		else if (dbs_tuners_ins.powersave_bias != 0)
+			ondemand_powersave_bias_setspeed(
+				this_dbs_info->cur_policy,
+				policy,
+				dbs_tuners_ins.powersave_bias);
 		mutex_unlock(&this_dbs_info->timer_mutex);
 		break;
 	}

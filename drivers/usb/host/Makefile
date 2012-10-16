@@ -15,6 +15,7 @@ xhci-hcd-y := xhci.o xhci-mem.o xhci-pci.o
 xhci-hcd-y += xhci-ring.o xhci-hub.o xhci-dbg.o
 
 obj-$(CONFIG_USB_WHCI_HCD)	+= whci/
+obj-$(CONFIG_USB_PEHCI_HCD)	+= pehci/
 
 obj-$(CONFIG_PCI)		+= pci-quirks.o
 
@@ -35,3 +36,4 @@ obj-$(CONFIG_USB_HWA_HCD)	+= hwa-hc.o
 obj-$(CONFIG_USB_IMX21_HCD)	+= imx21-hcd.o
 obj-$(CONFIG_USB_FSL_MPH_DR_OF)	+= fsl-mph-dr-of.o
 obj-$(CONFIG_USB_OCTEON2_COMMON) += octeon2-common.o
+obj-$(CONFIG_USB_HOST_EXTRA_NOTIFICATION) += host_ext_event.o
