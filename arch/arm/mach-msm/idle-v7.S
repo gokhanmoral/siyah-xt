@@ -32,6 +32,7 @@
 #endif
 
 ENTRY(msm_arch_idle)
+	isb /* avoid speculative execution of wfi */
 	wfi
 #ifdef CONFIG_ARCH_MSM8X60
 	mrc	p14, 1, r1, c1, c5, 4 /* read ETM PDSR to clear sticky bit */
@@ -117,6 +118,7 @@ skip:	ldr	r0, =saved_state
 	ldr	r2, [r2]
 	bl	scm_call_atomic1
 #else
+	isb /* avoid speculative execution of wfi */
 	wfi
 #endif
 	mcr     p15, 0, r4, c1, c0, 0    /* restore d/i cache  */
