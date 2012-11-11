@@ -81,6 +81,7 @@ ENDPROC(cpu_v7_reset)
  */
 ENTRY(cpu_v7_do_idle)
 	dsb					@ WFI may enter a low-power mode
+	isb					@ avoid speculative execution of WFI
 	wfi
 	mov	pc, lr
 ENDPROC(cpu_v7_do_idle)

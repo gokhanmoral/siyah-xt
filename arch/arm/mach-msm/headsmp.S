@@ -25,6 +25,7 @@ ENTRY(msm_secondary_startup)
 	sub	r4, r4, r5		@ determine virtual/phys offsets
 	add	r6, r6, r4		@ apply
 pen:
+	isb				@ avoid speculative execution of wfe
 	wfe
 	dsb				@ ensure subsequent access is
 					@ after event

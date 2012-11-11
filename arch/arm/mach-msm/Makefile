@@ -253,9 +253,6 @@ obj-$(CONFIG_MACH_MSM8930_CDP) += board-8930-all.o board-8930-regulator.o
 obj-$(CONFIG_MACH_MSM8930_MTP) += board-8930-all.o board-8930-regulator.o
 obj-$(CONFIG_MACH_MSM8930_FLUID) += board-8930-all.o board-8930-regulator.o
 
-obj-$(CONFIG_MACH_SEMC_HAYABUSA) += board-semc_blue.o devices-8960.o board-semc_blue_hayabusa.o
-obj-$(CONFIG_MACH_SEMC_HAYABUSA) += gyro-semc_common.o battery-blue_falk.o
-
 obj-$(CONFIG_MACH_SEMC_MINT) += board-semc_blue.o devices-8960.o board-semc_blue_mint.o
 obj-$(CONFIG_MACH_SEMC_MINT) += gyro-semc_common.o battery-blue_mentos.o
 

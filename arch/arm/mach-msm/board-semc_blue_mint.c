@@ -369,6 +369,19 @@ struct as3676_platform_data as3676_platform_data = {
 	},
 };
 
+#define VBUS_BIT 0x04
+static int __init startup_rgb(char *str)
+{
+	int vbus;
+	if (get_option(&str, &vbus)) {
+		if (vbus & VBUS_BIT)
+			as3676_platform_data.leds[6].startup_current_uA = 1000;
+		return 0;
+	}
+	return -EINVAL;
+}
+
+early_param("startup", startup_rgb);
 #endif
 
 /* Section: PMIC GPIO */

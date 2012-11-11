@@ -150,6 +150,7 @@
 #include "pm8921-gpio-mpp-blue.h"
 #include "board-semc_blue-vibrator.h"
 #include "board-semc_blue-usb.h"
+#include "board-storage-common-a.h"
 
 #ifdef CONFIG_LEDS_LM3533
 #include <linux/leds-lm3533_ng.h>
@@ -3514,7 +3515,8 @@ static struct mmc_platform_data msm8960_sdc1_data = {
 	.nonremovable	= 1,
 	.vreg_data	= &mmc_slot_vreg_data[SDCC1],
 	.pin_data	= &mmc_slot_pin_data[SDCC1],
-	.uhs_caps	= MMC_CAP_1_8V_DDR | MMC_CAP_UHS_DDR50
+	.uhs_caps	= MMC_CAP_1_8V_DDR | MMC_CAP_UHS_DDR50,
+	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
 };
 #endif
 
@@ -3532,6 +3534,7 @@ static struct mmc_platform_data msm8960_sdc2_data = {
 	.vreg_data      = &mmc_slot_vreg_data[SDCC2],
 	.pin_data       = &mmc_slot_pin_data[SDCC2],
 	.sdiowakeup_irq = MSM_GPIO_TO_INT(90),
+	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
 };
 #endif
 
@@ -3556,6 +3559,7 @@ static struct mmc_platform_data msm8960_sdc3_data = {
 #endif
 	.xpc_cap	= 1,
 	.uhs_caps	= 0,
+	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
 };
 #endif
 
@@ -3573,6 +3577,7 @@ static struct mmc_platform_data msm8960_sdc4_data = {
 	.vreg_data      = &mmc_slot_vreg_data[SDCC4],
 	.pin_data       = &mmc_slot_pin_data[SDCC4],
 	.sdiowakeup_irq = MSM_GPIO_TO_INT(85),
+	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
 };
 #endif
 

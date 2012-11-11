@@ -1,4 +1,3 @@
 Configuration files can be found in arch/arm/configs.
 
-Xperia GX => blue_hayabusa_defconfig
-Xperia T  => blue_mint_defconfig
+LT30at => blue_mint_defconfig

@@ -244,7 +244,7 @@ struct charging_enable_reg_val {
 
 static struct charging_enable_reg_val chg_en_set_data[DIS_BIT_MAX_NUM] = {
 	[DIS_BIT_EOC]			= {.chg_en_bit_val = false,
-						.chg_dis_bit_val = false},
+						.chg_dis_bit_val = true},
 	[DIS_BIT_THERM_FET_OPEN]	= {.chg_en_bit_val = false,
 						.chg_dis_bit_val = false},
 	[DIS_BIT_CHG_BATT_INVALID]	= {.chg_en_bit_val = false,
@@ -1492,6 +1492,10 @@ static int get_prop_batt_status(struct pm8921_chg_chip *chip)
 			|| pm_chg_get_rt_status(chip, CHGHOT_IRQ)
 			|| chip->soc < 100)
 			batt_state = POWER_SUPPLY_STATUS_NOT_CHARGING;
+	} else if (fsm_state == FSM_STATE_ON_BAT_3 &&
+			charging_disabled & DIS_BIT_EOC_MASK &&
+			power_supply_am_i_supplied(&chip->batt_psy)) {
+		batt_state = POWER_SUPPLY_STATUS_FULL;
 	}
 	return batt_state;
 }
@@ -2851,6 +2855,11 @@ static void pm_batt_external_power_changed(struct power_supply *psy)
 	if (!the_chip->ext_psy)
 		class_for_each_device(power_supply_class, NULL, psy,
 					 __pm_batt_external_power_changed_work);
+
+	if (power_supply_am_i_supplied(psy))
+		pm8921_chg_enable_irq(the_chip, BAT_TEMP_OK_IRQ);
+	else
+		pm8921_chg_disable_irq(the_chip, BAT_TEMP_OK_IRQ);
 }
 
 static void
@@ -3385,6 +3394,9 @@ static void __devinit determine_initial_state(struct pm8921_chg_chip *chip)
 		pm8921_chg_enable_irq(chip, CHG_GONE_IRQ);
 	}
 
+	if (chip->usb_present || chip->dc_present)
+		pm8921_chg_enable_irq(chip, BAT_TEMP_OK_IRQ);
+
 	pm8921_chg_enable_irq(chip, DCIN_VALID_IRQ);
 	pm8921_chg_enable_irq(chip, USBIN_VALID_IRQ);
 	pm8921_chg_enable_irq(chip, BATT_REMOVED_IRQ);
@@ -3392,7 +3404,6 @@ static void __devinit determine_initial_state(struct pm8921_chg_chip *chip)
 	pm8921_chg_enable_irq(chip, DCIN_UV_IRQ);
 	pm8921_chg_enable_irq(chip, CHGFAIL_IRQ);
 	pm8921_chg_enable_irq(chip, FASTCHG_IRQ);
-	pm8921_chg_enable_irq(chip, BAT_TEMP_OK_IRQ);
 	pm8921_chg_enable_irq(chip, VBATDET_LOW_IRQ);
 
 	spin_lock_irqsave(&vbus_lock, flags);
