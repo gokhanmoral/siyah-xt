@@ -14,7 +14,7 @@
 #include <linux/module.h>
 #include <linux/bitmap.h>
 #include <linux/genalloc.h>
-
+#include <linux/vmalloc.h>
 
 /* General purpose special memory pool descriptor. */
 struct gen_pool {
@@ -77,18 +77,28 @@ int __must_check gen_pool_add_virt(struct gen_pool *pool, unsigned long virt, ph
 		 size_t size, int nid)
 {
 	struct gen_pool_chunk *chunk;
-	int nbits = size >> pool->min_alloc_order;
-	int nbytes = sizeof(struct gen_pool_chunk) +
-				BITS_TO_LONGS(nbits) * sizeof(long);
+	size_t nbytes;
+
+	if (WARN_ON(!virt || virt + size < virt ||
+	    (virt & ((1 << pool->order) - 1))))
+		return -EINVAL;
 
 	size = size >> pool->order;
 	if (WARN_ON(!size))
 		return -EINVAL;
 
 	nbytes = sizeof *chunk + BITS_TO_LONGS(size) * sizeof *chunk->bits;
-	chunk = kzalloc_node(nbytes, GFP_KERNEL, nid);
+
+	if (nbytes <= PAGE_SIZE)
+		chunk = kzalloc_node(nbytes, GFP_KERNEL, nid);
+	else
+		chunk = vmalloc(nbytes);
+
 	if (!chunk)
 		return -ENOMEM;
+
+	if (nbytes > PAGE_SIZE)
+		memset(chunk, 0, nbytes);
 
 	spin_lock_init(&chunk->lock);
 	chunk->phys_addr = phys;
@@ -140,6 +150,7 @@ void gen_pool_destroy(struct gen_pool *pool)
 {
 	struct gen_pool_chunk *chunk;
 	int bit;
+	size_t nbytes;
 
 	while (!list_empty(&pool->chunks)) {
 		chunk = list_entry(pool->chunks.next, struct gen_pool_chunk,
@@ -149,7 +160,13 @@ void gen_pool_destroy(struct gen_pool *pool)
 		bit = find_next_bit(chunk->bits, chunk->size, 0);
 		BUG_ON(bit < chunk->size);
 
-		kfree(chunk);
+		nbytes = sizeof *chunk + BITS_TO_LONGS(chunk->size) *
+			sizeof *chunk->bits;
+
+		if (nbytes <= PAGE_SIZE)
+			kfree(chunk);
+		else
+			vfree(chunk);
 	}
 	kfree(pool);
 }

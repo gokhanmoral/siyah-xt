@@ -1082,7 +1082,7 @@ static void kcryptd_crypt_write_convert(struct dm_crypt_io *io)
 		if (r < 0)
 			io->error = -EIO;
 
-		crypt_finished = atomic_dec_and_test(&io->ctx.pending);
+		crypt_finished = atomic_dec_and_test(&io->ctx.cc_pending);
 
 		/* Encryption was already finished, submit io now */
 		if (crypt_finished) {
@@ -1156,7 +1156,7 @@ static void kcryptd_crypt_read_convert(struct dm_crypt_io *io)
 	if (r < 0)
 		io->error = -EIO;
 
-	if (atomic_dec_and_test(&io->ctx.pending))
+	if (atomic_dec_and_test(&io->ctx.cc_pending))
 		kcryptd_crypt_read_done(io);
 
 	crypt_dec_pending(io);
