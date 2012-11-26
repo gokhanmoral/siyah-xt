@@ -348,7 +348,7 @@ static struct scalable scalable_8627[] = {
 };
 
 static struct l2_level *l2_freq_tbl;
-static struct acpu_level *acpu_freq_tbl;
+struct acpu_level *acpu_freq_tbl;
 static int l2_freq_tbl_size;
 static struct scalable *scalable;
 #define SCALABLE_TO_CPU(sc) ((sc) - scalable)

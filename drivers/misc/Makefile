@@ -77,3 +77,4 @@ obj-$(CONFIG_NFC_PN544)		+= pn544.o
 obj-$(CONFIG_SEMC_FELICA_SUPPORT) += felica.o
 obj-$(CONFIG_RAMDUMP_CRASH_LOGS) += ramdumplogs.o
 obj-$(CONFIG_SEMC_ONESEG_TUNER_PM) += oneseg_tunerpm.o
+obj-$(CONFIG_CPU_UNDERVOLTING)	+= cpu_undervolting.o
