@@ -1438,7 +1438,7 @@ static struct acpu_level * __init select_freq_plan(void)
 	} else {
 		BUG();
 	}
-	if (krait_needs_vmin())
+	if (krait_needs_vmin() && 0)
 		kraitv2_apply_vmin(acpu_freq_tbl);
 
 	/* Find the max supported scaling frequency. */
