@@ -75,6 +75,7 @@
 #define FLASH_CONTROL_WRITE_FIRMWARE_BLOCK		0x02
 #define FLASH_CONTROL_ERASE_ALL				0x03
 #define FLASH_CONTROL_WRITE_CONFIGURATION_BLOCK		0x06
+#define FLASH_CONTROL_ERASE_CONFIGURATION		0x07
 #define FLASH_CONTROL_ENABLE_FLASH_PROGRAMMING		0x0f
 #define FLASH_CONTROL_PROGRAM_ENABLED			0x80
 #define ANALOG_CONTROL_NO_AUTO_CAL			0x10
@@ -233,12 +234,19 @@ enum synaptics_flush_commands {
 	SYN_LOAD_START,
 	SYN_LOAD_END,
 	SYN_FORCE_FLUSH,
+	SYN_CONFIG_FLUSH,
 };
 
 static const char * const flush_commands[] = {
 	[SYN_LOAD_START]	= "load_start",
 	[SYN_LOAD_END]		= "load_end",
 	[SYN_FORCE_FLUSH]	= "force_flush",
+	[SYN_CONFIG_FLUSH]	= "config_flush",
+};
+
+enum synaptics_flash_modes {
+	SYN_FLASH_MODE_NORMAL = 0,
+	SYN_FLASH_MODE_CONFIG = 1,
 };
 
 struct synaptics_device_info {
@@ -335,6 +343,7 @@ struct synaptics_clearpad {
 	struct platform_device *rmi_dev;
 #endif
 	bool fwdata_available;
+	enum synaptics_flash_modes flash_mode;
 	struct synaptics_extents extents;
 	int active;
 	int irq_mask;
@@ -732,14 +741,19 @@ static int synaptics_flash_program(struct synaptics_clearpad *this)
 
 	usleep(10000);
 
-	/* issue a firmware and configuration erase */
-	rc = synaptics_put(this, SYNF(F34_FLASH, DATA, 0x12),
-					FLASH_CONTROL_ERASE_ALL);
+	if (this->flash_mode == SYN_FLASH_MODE_NORMAL)
+		/* issue a firmware and configuration erase */
+		rc = synaptics_put(this, SYNF(F34_FLASH, DATA, 0x12),
+				   FLASH_CONTROL_ERASE_ALL);
+	else
+		/* issue a configuration erase */
+		rc = synaptics_put(this, SYNF(F34_FLASH, DATA, 0x12),
+				   FLASH_CONTROL_ERASE_CONFIGURATION);
+
 	if (rc)
 		return rc;
 
 	dev_info(&this->pdev->dev, "firmware erasing\n");
-	dev_info(&this->pdev->dev, "flashing data\n");
 
 	this->state = SYN_STATE_FLASH_PROGRAM;
 	return rc;
@@ -984,10 +998,17 @@ static int synaptics_clearpad_flash(struct synaptics_clearpad *this)
 		LOG_CHECK(this, "rc=%d\n", rc);
 		break;
 	case SYN_STATE_FLASH_PROGRAM:
-		rc = synaptics_flash_data(this);
+		if (this->flash_mode == SYN_FLASH_MODE_NORMAL) {
+			rc = synaptics_flash_data(this);
+			LOG_CHECK(this, "rc=%d\n", rc);
+		} else {
+			rc = synaptics_flash_config(this);
+			LOG_CHECK(this, "rc=%d\n", rc);
+		}
 		break;
 	case SYN_STATE_FLASH_DATA:
 		rc = synaptics_flash_config(this);
+		LOG_CHECK(this, "rc=%d\n", rc);
 		break;
 	case SYN_STATE_FLASH_CONFIG:
 		rc = synaptics_flash_disable(this);
@@ -1774,7 +1795,8 @@ static int synaptics_clearpad_command_fw_load_start(
 	return rc;
 }
 
-static int synaptics_clearpad_command_fw_flash(struct synaptics_clearpad *this)
+static int synaptics_clearpad_command_fw_flash(struct synaptics_clearpad *this,
+					enum synaptics_flash_modes flash_mode)
 {
 	enum   synaptics_state state;
 	int rc;
@@ -1796,6 +1818,7 @@ static int synaptics_clearpad_command_fw_flash(struct synaptics_clearpad *this)
 
 	memset(this->result_info, 0, SYNAPTICS_STRING_LENGTH);
 	this->flash_requested = true;
+	this->flash_mode = flash_mode;
 
 	synaptics_firmware_check(this);
 
@@ -1930,7 +1953,13 @@ static ssize_t synaptics_clearpad_fwflush_store(struct device *dev,
 	} else if (!strncmp(buf, flush_commands[SYN_LOAD_END], PAGE_SIZE)) {
 		rc = synaptics_clearpad_command_fw_load_end(this);
 	} else if (!strncmp(buf, flush_commands[SYN_FORCE_FLUSH], PAGE_SIZE)) {
-		rc = synaptics_clearpad_command_fw_flash(this);
+		dev_info(&this->pdev->dev, "start firmware flash\n");
+		rc = synaptics_clearpad_command_fw_flash(this,
+							 SYN_FLASH_MODE_NORMAL);
+	} else if (!strncmp(buf, flush_commands[SYN_CONFIG_FLUSH], PAGE_SIZE)) {
+		dev_info(&this->pdev->dev, "start firmware config\n");
+		rc = synaptics_clearpad_command_fw_flash(this,
+							 SYN_FLASH_MODE_CONFIG);
 	} else {
 		dev_err(&this->pdev->dev, "illegal command\n");
 		rc = -EINVAL;

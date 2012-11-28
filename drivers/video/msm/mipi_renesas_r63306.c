@@ -1,6 +1,7 @@
 /* drivers/video/msm/mipi_renesas_r63306.c
  *
  * Copyright (C) [2011] Sony Ericsson Mobile Communications AB.
+ * Copyright (C) 2012 Sony Mobile Communications AB.
  * Author: Yosuke Hatanaka <yosuke.hatanaka@sonyericsson.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -163,6 +164,7 @@ static int __devinit mipi_r63306_lcd_probe(struct platform_device *pdev)
 	dsi_data->panels = platform_data->panels;
 	dsi_data->lcd_power = platform_data->lcd_power;
 	dsi_data->lcd_reset = platform_data->lcd_reset;
+	dsi_data->eco_mode_switch = mipi_dsi_eco_mode_switch;
 	if (mipi_dsi_need_detect_panel(dsi_data->panels)) {
 		dsi_data->panel_data.panel_detect = mipi_dsi_detect_panel;
 		dsi_data->panel_data.update_panel = mipi_dsi_update_panel;

@@ -200,6 +200,43 @@ int mipi_dsi_update_panel(struct platform_device *pdev)
 	return 0;
 }
 
+int mipi_dsi_eco_mode_switch(struct msm_fb_data_type *mfd)
+{
+	int ret = 0;
+	struct mipi_dsi_data *dsi_data;
+	struct dsi_controller *pctrl;
+
+	dsi_data = platform_get_drvdata(mfd->panel_pdev);
+	if (!dsi_data || !dsi_data->lcd_power) {
+		ret = -ENODEV;
+		goto eco_mode_switch_fail;
+	}
+	pctrl = dsi_data->panel->pctrl;
+
+	mipi_set_tx_power_mode(0);
+
+	if (dsi_data->eco_mode_on && pctrl->eco_mode_gamma_cmds) {
+		mipi_dsi_buf_init(&dsi_data->tx_buf);
+		mipi_dsi_cmds_tx(mfd, &dsi_data->tx_buf,
+			pctrl->eco_mode_gamma_cmds,
+			pctrl->eco_mode_gamma_cmds_size);
+		dev_info(&mfd->panel_pdev->dev, "ECO MODE ON\n");
+	} else if (pctrl->normal_gamma_cmds) {
+		mipi_dsi_buf_init(&dsi_data->tx_buf);
+		mipi_dsi_cmds_tx(mfd, &dsi_data->tx_buf,
+			pctrl->normal_gamma_cmds,
+			pctrl->normal_gamma_cmds_size);
+		dev_info(&mfd->panel_pdev->dev, "ECO MODE OFF\n");
+	}
+
+	mipi_set_tx_power_mode(1);
+
+	return ret;
+
+eco_mode_switch_fail:
+	return ret;
+}
+
 static ssize_t show_eco_mode(struct device *dev,
 	struct device_attribute *attr,
 	char *buf)
@@ -244,28 +281,8 @@ static ssize_t store_eco_mode(struct device *dev,
 	else
 		dsi_data->eco_mode_on = false;
 
-	if (mfd->panel_power_on) {
-		int curr_pwr_state;
-
-		mfd->op_enable = FALSE;
-		curr_pwr_state = mfd->panel_power_on;
-		mfd->panel_power_on = FALSE;
-
-		msleep(ONE_FRAME_TRANSMIT_WAIT_MS);
-		ret = pdata->off(mfd->pdev);
-		if (ret)
-			mfd->panel_power_on = curr_pwr_state;
-
-		mfd->op_enable = TRUE;
-	}
-
-	if (!mfd->panel_power_on) {
-		ret = pdata->on(mfd->pdev);
-		if (ret == 0) {
-			mfd->panel_power_on = TRUE;
-			mdp4_dsi_video_overlay(mfd);
-		}
-	}
+	if (mfd->panel_power_on)
+		dsi_data->eco_mode_switch(mfd);
 
 exit:
 	ret = strnlen(buf, count);

@@ -1,6 +1,7 @@
 /* drivers/video/msm/mipi_r63306_panels/mipi_tmd_mdw30.c
  *
  * Copyright (C) [2011] Sony Ericsson Mobile Communications AB.
+ * Copyright (C) 2012 Sony Mobile Communications AB.
  * Author: Yosuke Hatanaka <yosuke.hatanaka@sonyericsson.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -61,53 +62,77 @@ static char ltps_if_ctrl_2[] = {
 static char gamma_ctrl[] = {
 	0xC8, 0x4C, 0x0C, 0x0C, 0x0C
 };
-static char gamma_ctrl_set_r_pos[] = {
+static char gamma_ctrl_set_r_pos_id_old[] = {
 	0xC9, 0x00, 0x63, 0x3B, 0x3A, 0x33, 0x25, 0x2A,
 	0x30, 0x2B, 0x2F, 0x47, 0x79, 0x3F
 };
-static char gamma_ctrl_set_r_pos_eco[] = {
-	0xC9, 0x00, 0x11, 0x20, 0x39, 0x3C, 0x38, 0x3F,
-	0x43, 0x38, 0x30, 0x55, 0x39, 0x3F
-};
-static char gamma_ctrl_set_r_neg[] = {
+static char gamma_ctrl_set_r_neg_id_old[] = {
 	0xCA, 0x00, 0x46, 0x1A, 0x31, 0x35, 0x2F, 0x36,
 	0x3A, 0x2D, 0x25, 0x28, 0x5C, 0x3F
 };
-static char gamma_ctrl_set_r_neg_eco[] = {
-	0xCA, 0x00, 0x06, 0x0A, 0x2F, 0x27, 0x1C, 0x20,
-	0x27, 0x23, 0x26, 0x3F, 0x2E, 0x3F
-};
-static char gamma_ctrl_set_g_pos[] = {
+static char gamma_ctrl_set_g_pos_id_old[] = {
 	0xCB, 0x00, 0x63, 0x3B, 0x3A, 0x33, 0x25, 0x2A,
 	0x30, 0x2B, 0x2F, 0x47, 0x79, 0x3F
 };
-static char gamma_ctrl_set_g_pos_eco[] = {
-	0xCB, 0x00, 0x11, 0x20, 0x39, 0x3C, 0x38, 0x3F,
-	0x43, 0x38, 0x30, 0x55, 0x39, 0x3F
-};
-static char gamma_ctrl_set_g_neg[] = {
+static char gamma_ctrl_set_g_neg_id_old[] = {
 	0xCC, 0x00, 0x46, 0x1A, 0x31, 0x35, 0x2F, 0x36,
 	0x3A, 0x2D, 0x25, 0x28, 0x5C, 0x3F
 };
-static char gamma_ctrl_set_g_neg_eco[] = {
-	0xCC, 0x00, 0x06, 0x0A, 0x2F, 0x27, 0x1C, 0x20,
-	0x27, 0x23, 0x26, 0x3F, 0x2E, 0x3F
-};
-static char gamma_ctrl_set_b_pos[] = {
+static char gamma_ctrl_set_b_pos_id_old[] = {
 	0xCD, 0x00, 0x63, 0x3B, 0x3A, 0x33, 0x25, 0x2A,
 	0x30, 0x2B, 0x2F, 0x47, 0x79, 0x3F
 };
-static char gamma_ctrl_set_b_pos_eco[] = {
-	0xCD, 0x00, 0x11, 0x20, 0x39, 0x3C, 0x38, 0x3F,
-	0x43, 0x38, 0x30, 0x55, 0x39, 0x3F
-};
-static char gamma_ctrl_set_b_neg[] = {
+static char gamma_ctrl_set_b_neg_id_old[] = {
 	0xCE, 0x00, 0x46, 0x1A, 0x31, 0x35, 0x2F, 0x36,
 	0x3A, 0x2D, 0x25, 0x28, 0x5C, 0x3F
 };
+static char gamma_ctrl_set_r_pos[] = {
+	0xC9, 0x00, 0x00, 0x00, 0x16, 0x32, 0x2E, 0x3A,
+	0x43, 0x3E, 0x39, 0x3D, 0x2D, 0x3F
+};
+static char gamma_ctrl_set_r_neg[] = {
+	0xCA, 0x00, 0x12, 0x22, 0x26, 0x21, 0x1C, 0x25,
+	0x31, 0x2D, 0x49, 0x5F, 0x3F, 0x3F
+};
+static char gamma_ctrl_set_g_pos[] = {
+	0xCB, 0x00, 0x0C, 0x20, 0x3A, 0x42, 0x40, 0x47,
+	0x4B, 0x42, 0x3B, 0x3E, 0x32, 0x3F
+};
+static char gamma_ctrl_set_g_neg[] = {
+	0xCC, 0x00, 0x0D, 0x21, 0x24, 0x1D, 0x14, 0x18,
+	0x1F, 0x1D, 0x25, 0x3F, 0x33, 0x3F
+};
+static char gamma_ctrl_set_b_pos[] = {
+	0xCD, 0x23, 0x39, 0x5A, 0x5F, 0x57, 0x4C, 0x51,
+	0x51, 0x45, 0x3C, 0x43, 0x33, 0x3F
+};
+static char gamma_ctrl_set_b_neg[] = {
+	0xCE, 0x00, 0x0C, 0x1C, 0x23, 0x1A, 0x0E, 0x0E,
+	0x13, 0x08, 0x00, 0x05, 0x06, 0x1C
+};
+static char gamma_ctrl_set_r_pos_eco[] = {
+	0xC9, 0x00, 0x18, 0x2B, 0x40, 0x43, 0x3C, 0x42,
+	0x46, 0x3A, 0x32, 0x32, 0x39, 0x3F
+};
+static char gamma_ctrl_set_r_neg_eco[] = {
+	0xCA, 0x00, 0x06, 0x2D, 0x2D, 0x25, 0x19, 0x1D,
+	0x23, 0x1C, 0x1F, 0x34, 0x27, 0x3F
+};
+static char gamma_ctrl_set_g_pos_eco[] = {
+	0xCB, 0x00, 0x18, 0x2B, 0x40, 0x43, 0x3C, 0x42,
+	0x46, 0x3A, 0x32, 0x32, 0x39, 0x3F
+};
+static char gamma_ctrl_set_g_neg_eco[] = {
+	0xCC, 0x00, 0x06, 0x2D, 0x2D, 0x25, 0x19, 0x1D,
+	0x23, 0x1C, 0x1F, 0x34, 0x27, 0x3F
+};
+static char gamma_ctrl_set_b_pos_eco[] = {
+	0xCD, 0x00, 0x18, 0x2B, 0x40, 0x43, 0x3C, 0x42,
+	0x46, 0x3A, 0x32, 0x32, 0x39, 0x3F
+};
 static char gamma_ctrl_set_b_neg_eco[] = {
-	0xCE, 0x00, 0x06, 0x0A, 0x2F, 0x27, 0x1C, 0x20,
-	0x27, 0x23, 0x26, 0x3F, 0x2E, 0x3F
+	0xCE, 0x00, 0x06, 0x2D, 0x2D, 0x25, 0x19, 0x1D,
+	0x23, 0x1C, 0x1F, 0x34, 0x27, 0x3F
 };
 static char power_setting_1[] = {
 	0xD0, 0x6A, 0x64, 0x01
@@ -178,17 +203,23 @@ static struct dsi_cmd_desc tmd_display_init_cmds_id_old[] = {
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
 		sizeof(gamma_ctrl), gamma_ctrl},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
-		sizeof(gamma_ctrl_set_r_pos), gamma_ctrl_set_r_pos},
+		sizeof(gamma_ctrl_set_r_pos_id_old),
+		gamma_ctrl_set_r_pos_id_old},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
-		sizeof(gamma_ctrl_set_r_neg), gamma_ctrl_set_r_neg},
+		sizeof(gamma_ctrl_set_r_neg_id_old),
+		gamma_ctrl_set_r_neg_id_old},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
-		sizeof(gamma_ctrl_set_g_pos), gamma_ctrl_set_g_pos},
+		sizeof(gamma_ctrl_set_g_pos_id_old),
+		gamma_ctrl_set_g_pos_id_old},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
-		sizeof(gamma_ctrl_set_g_neg), gamma_ctrl_set_g_neg},
+		sizeof(gamma_ctrl_set_g_neg_id_old),
+		gamma_ctrl_set_g_neg_id_old},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
-		sizeof(gamma_ctrl_set_b_pos), gamma_ctrl_set_b_pos},
+		sizeof(gamma_ctrl_set_b_pos_id_old),
+		gamma_ctrl_set_b_pos_id_old},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
-		sizeof(gamma_ctrl_set_b_neg), gamma_ctrl_set_b_neg},
+		sizeof(gamma_ctrl_set_b_neg_id_old),
+		gamma_ctrl_set_b_neg_id_old},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
 		sizeof(power_setting_1), power_setting_1},
 	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
@@ -245,6 +276,36 @@ static struct dsi_cmd_desc tmd_display_off_cmds[] = {
 
 static struct dsi_cmd_desc read_ddb_start_cmds[] = {
 	{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(read_ddb_start), read_ddb_start},
+};
+
+static struct dsi_cmd_desc tmd_eco_mode_gamma_cmds[] = {
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_r_pos_eco), gamma_ctrl_set_r_pos_eco},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_r_neg_eco), gamma_ctrl_set_r_neg_eco},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_g_pos_eco), gamma_ctrl_set_g_pos_eco},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_g_neg_eco), gamma_ctrl_set_g_neg_eco},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_b_pos_eco), gamma_ctrl_set_b_pos_eco},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_b_neg_eco), gamma_ctrl_set_b_neg_eco},
+};
+
+static struct dsi_cmd_desc tmd_normal_gamma_cmds[] = {
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_r_pos), gamma_ctrl_set_r_pos},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_r_neg), gamma_ctrl_set_r_neg},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_g_pos), gamma_ctrl_set_g_pos},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_g_neg), gamma_ctrl_set_g_neg},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_b_pos), gamma_ctrl_set_b_pos},
+	{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(gamma_ctrl_set_b_neg), gamma_ctrl_set_b_neg},
 };
 
 static const struct mipi_dsi_phy_ctrl dsi_video_mode_phy_db[] = {
@@ -342,10 +403,14 @@ static struct dsi_controller dsi_video_controller_panel = {
 	.display_on_cmds = tmd_display_on_cmds,
 	.display_off_cmds = tmd_display_off_cmds,
 	.read_id_cmds = read_ddb_start_cmds,
+	.eco_mode_gamma_cmds = tmd_eco_mode_gamma_cmds,
+	.normal_gamma_cmds = tmd_normal_gamma_cmds,
 	.display_init_cmds_size = ARRAY_SIZE(tmd_display_init_cmds),
 	.display_on_eco_cmds_size = ARRAY_SIZE(tmd_display_on_eco_cmds),
 	.display_on_cmds_size = ARRAY_SIZE(tmd_display_on_cmds),
 	.display_off_cmds_size = ARRAY_SIZE(tmd_display_off_cmds),
+	.eco_mode_gamma_cmds_size = ARRAY_SIZE(tmd_eco_mode_gamma_cmds),
+	.normal_gamma_cmds_size = ARRAY_SIZE(tmd_normal_gamma_cmds),
 };
 
 static char ddb_val_id_old[] = {

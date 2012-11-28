@@ -677,6 +677,13 @@ config MSM_USE_TSIF1
 	  The two TSIF cores share the same DM configuration
 	  so they cannot be used simultaneously.
 
+config MACH_SEMC_HAYABUSA
+	depends on ARCH_MSM8960
+	default n
+	bool "SEMC Hayabusa"
+	help
+	  Support for the Sony Ericsson Hayabusa
+
 config MACH_SEMC_MINT
 	depends on ARCH_MSM8960
 	default n
@@ -2257,5 +2264,12 @@ config MSM_CACHE_DUMP_ON_PANIC
 	  look at them in a RAM dump will give useless data. Select this if you
 	  want to dump the L1 and L2 caches on panic before any flush occurs.
 	  If unsure, say N
+
+config SONY_SSM
+        bool "Support Super Stamina Mode"
+        default n
+        help
+          This enables support for power mode notifications, required by Super
+          Stamina Mode.
 
 endif
