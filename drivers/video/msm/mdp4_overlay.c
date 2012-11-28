@@ -1691,6 +1691,7 @@ void mdp4_mixer_blend_setup(struct mdp4_overlay_pipe *pipe)
 			outpdw(rgb_base + 0x50, rgb_src_format);
 			outpdw(rgb_base + 0x1008, constant_color);
 			outpdw(rgb_base + 0x0000, inpdw(rgb_base + 0x0008));
+			mdp4_overlay_reg_flush(bg_pipe, 0);
 		} else {
 			u32 src_size = ((pipe->src_h << 16) | pipe->src_w);
 			pnum = bg_pipe->pipe_num - OVERLAY_PIPE_RGB1;

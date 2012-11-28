@@ -244,10 +244,11 @@ static struct platform_device msm_fm_platform_init = {
 #define MSM_ION_AUDIO_SIZE     0x2B4000
 #define MSM_ION_HEAP_NUM	8
 #define MSM_HDMI_PRIM_ION_SF_SIZE MSM_HDMI_PRIM_PMEM_SIZE
-#define MSM8960_FIXED_AREA_START 0xb0000000
-#define MAX_FIXED_AREA_SIZE	0x10000000
 #define MSM_MM_FW_SIZE		0x200000
-#define MSM8960_FW_START	(MSM8960_FIXED_AREA_START - MSM_MM_FW_SIZE)
+#define MSM8960_FIXED_AREA_START (0xb0000000 - MSM_MM_FW_SIZE)
+#define MAX_FIXED_AREA_SIZE	0x10000000
+#define MSM8960_FW_START	(MSM8960_FIXED_AREA_START)
+#define HOLE_SIZE		0x100000
 #else
 #define MSM_PMEM_KERNEL_EBI1_SIZE  0x110C000
 #define MSM_ION_HEAP_NUM	1
@@ -741,14 +742,15 @@ static void __init reserve_ion_memory(void)
 		return;
 
 	if (fmem_pdata.size) {
-		fmem_pdata.reserved_size_low = fixed_low_size;
+		fmem_pdata.reserved_size_low = fixed_low_size + HOLE_SIZE;
 		fmem_pdata.reserved_size_high = fixed_high_size;
+		fmem_pdata.size += HOLE_SIZE;
 	}
 
-	msm8960_reserve_fixed_area(fixed_size + MSM_MM_FW_SIZE);
+	msm8960_reserve_fixed_area(fixed_size + HOLE_SIZE);
 
 	fixed_low_start = MSM8960_FIXED_AREA_START;
-	fixed_middle_start = fixed_low_start + fixed_low_size;
+	fixed_middle_start = fixed_low_start + fixed_low_size + HOLE_SIZE ;
 	fixed_high_start = fixed_middle_start + fixed_middle_size;
 
 	for (i = 0; i < ion_pdata.nr; ++i) {
@@ -757,8 +759,12 @@ static void __init reserve_ion_memory(void)
 		if (heap->extra_data) {
 			int fixed_position = NOT_FIXED;
 
+			struct ion_cp_heap_pdata *pdata;
+
 			switch (heap->type) {
 			case ION_HEAP_TYPE_CP:
+				pdata =
+				(struct ion_cp_heap_pdata *)heap->extra_data;
 				fixed_position = ((struct ion_cp_heap_pdata *)
 					heap->extra_data)->fixed_position;
 				break;
@@ -776,6 +782,9 @@ static void __init reserve_ion_memory(void)
 				break;
 			case FIXED_MIDDLE:
 				heap->base = fixed_middle_start;
+				pdata->secure_base = fixed_middle_start -
+								HOLE_SIZE;
+				pdata->secure_size = HOLE_SIZE + heap->size;
 				break;
 			case FIXED_HIGH:
 				heap->base = fixed_high_start;
@@ -1015,8 +1024,7 @@ static void __init msm8960_reserve(void)
 	reserve_memory_lastlogs();
 	if (fmem_pdata.size) {
 #if defined(CONFIG_ION_MSM) && defined(CONFIG_MSM_MULTIMEDIA_USE_ION)
-		fmem_pdata.phys = reserve_info->fixed_area_start +
-			MSM_MM_FW_SIZE;
+		fmem_pdata.phys = reserve_info->fixed_area_start;
 		pr_info("mm fw at %lx (fixed) size %x\n",
 			reserve_info->fixed_area_start, MSM_MM_FW_SIZE);
 		pr_info("fmem start %lx (fixed) size %lx\n",
@@ -2546,6 +2554,13 @@ static struct platform_device hdmi_msm_device = {
 	.dev.platform_data = &hdmi_msm_data,
 };
 #endif /* CONFIG_FB_MSM_HDMI_MSM_PANEL */
+
+#ifdef CONFIG_FB_MSM_WRITEBACK_MSM_PANEL
+static struct platform_device wfd_device = {
+	.name = "msm_wfd",
+	.id = -1,
+};
+#endif
 
 #ifdef CONFIG_MSM_BUS_SCALING
 static struct msm_bus_vectors dtv_bus_init_vectors[] = {
@@ -5322,6 +5337,13 @@ static struct msm_serial_hslite_platform_data msm_uart_gsbi12_pdata = {
 };
 #endif
 
+#ifdef CONFIG_SONY_SSM
+static struct platform_device sony_ssm_device = {
+	.name = "sony_ssm",
+	.id = -1,
+};
+#endif
+
 static struct platform_device *common_devices[] __initdata = {
 	&msm8960_device_dmov,
 	&msm_device_smd,
@@ -5480,12 +5502,18 @@ static struct platform_device *msm8960_devices[] __initdata = {
 #ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
 	&hdmi_msm_device,
 #endif
+#ifdef CONFIG_FB_MSM_WRITEBACK_MSM_PANEL
+	&wfd_device,
+#endif
 	&msm_pcm_hostless,
 	&msm_bus_apps_fabric,
 	&msm_bus_sys_fabric,
 	&msm_bus_mm_fabric,
 	&msm_bus_sys_fpb,
 	&msm_bus_cpss_fpb,
+#ifdef CONFIG_SONY_SSM
+	&sony_ssm_device,
+#endif
 };
 
 static void __init msm8960_i2c_init(void)

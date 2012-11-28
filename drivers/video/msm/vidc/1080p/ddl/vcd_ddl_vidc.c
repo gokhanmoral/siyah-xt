@@ -1,4 +1,5 @@
 /* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+ * Copyright (C) 2012 Sony Mobile Communications AB
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -536,10 +537,6 @@ void ddl_vidc_encode_init_codec(struct ddl_client_context *ddl)
 	scaled_frame_rate = DDL_FRAMERATE_SCALE(encoder->\
 			frame_rate.fps_numerator) /
 			encoder->frame_rate.fps_denominator;
-	if ((encoder->codec.codec == VCD_CODEC_H263) &&
-		(DDL_FRAMERATE_SCALE(DDL_INITIAL_FRAME_RATE)
-		 != scaled_frame_rate))
-		h263_cpfc_enable = true;
 	vidc_sm_set_extended_encoder_control(&ddl->shared_mem
 		[ddl->command_channel], hdr_ext_control,
 		r_cframe_skip, false, 0,
@@ -804,6 +801,7 @@ u32 ddl_vidc_decode_set_buffers(struct ddl_client_context *ddl)
 		DDL_MSG_ERROR("STATE-CRITICAL");
 		return VCD_ERR_FAIL;
 	}
+	ddl_set_vidc_timeout(ddl);
 	ddl_vidc_decode_set_metadata_output(decoder);
 	if (decoder->dp_buf.no_of_dec_pic_buf <
 		decoder->client_output_buf_req.actual_count)
@@ -902,6 +900,7 @@ void ddl_vidc_decode_frame_run(struct ddl_client_context *ddl)
 		decoder->flush_pending = false;
 	} else
 		dec_param.dpb_flush = false;
+	ddl_set_vidc_timeout(ddl);
 	vidc_sm_set_frame_tag(&ddl->shared_mem[ddl->command_channel],
 		bit_stream->ip_frm_tag);
 	if (ddl_context->pix_cache_enable) {

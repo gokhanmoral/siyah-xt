@@ -1,4 +1,4 @@
-/* arch/arm/mach-msm/board-semc_blue_mint.c
+/* arch/arm/mach-msm/board-semc_blue_hayabusa.c
  *
  * Copyright (C) 2012 Sony Ericsson Mobile Communications AB.
  * Copyright (C) 2012 Sony Mobile Communications AB.
@@ -25,7 +25,6 @@
 #include <linux/mfd/core.h>
 #include <linux/mfd/pm8xxx/pm8921.h>
 #include <linux/regulator/gpio-regulator.h>
-#include <linux/vibrator-lc898300.h>
 #include <mach/board.h>
 #include <mach/gpiomux.h>
 #include <mach/irqs.h>
@@ -42,38 +41,83 @@
 #include "charger-semc_blue.h"
 #include "gyro-semc_common.h"
 #include "pm8921-gpio-mpp-blue.h"
+#include "board-semc_blue-vibrator.h"
 #include "board-semc_blue-usb.h"
 
 /* Section: Vibrator */
-#if defined(CONFIG_VIBRATOR_LC898300)
-
-struct lc898300_vib_cmd lc898300_vib_cmd_data = {
-	.vib_cmd_intensity = VIB_CMD_PWM_8_15,
-	.vib_cmd_resonance = VIB_CMD_FREQ_150,
-	.vib_cmd_startup   = VIB_CMD_STTIME_3,
-	.vib_cmd_brake     = VIB_CMD_ATBR | VIB_CMD_BRTIME_2 |
-				VIB_CMD_BRPWR_15_15,
+struct pm8xxx_vibrator_platform_data pm8xxx_vibrator_pdata = {
+	.initial_vibrate_ms = 0,
+	.max_timeout_ms = 15000,
+	.level_mV = 3100,
 };
 
-#endif
-
 /* Section: Touch */
+struct synaptics_pointer_data pointer_data_0x19 = {
+	.offset_x = 0,
+	.offset_y = 49,
+};
+
+struct synaptics_pointer_data pointer_data_0x1A = {
+	.offset_x = 0,
+	.offset_y = 55,
+};
+
 struct synaptics_funcarea clearpad_funcarea_array[] = {
 	{
-		{ 0, 0, 719, 1279 }, { 0, 0, 719, 1279 },
+		{ 0, 0, 719, 1279 }, { 0, 0, 719, 1299 },
 		SYN_FUNCAREA_POINTER, NULL
+	},
+	{ .func = SYN_FUNCAREA_END }
+};
+
+struct synaptics_funcarea clearpad_funcarea_array_0x19[] = {
+	{
+		{ 0, 0, 719, 36 }, { 0, 0, 719, 36 },
+		SYN_FUNCAREA_INSENSIBLE, NULL
+	},
+	{
+		{ 0, 49, 719, 1328 }, { 0, 37, 719, 1332 },
+		SYN_FUNCAREA_POINTER, &pointer_data_0x19
+	},
+	{ .func = SYN_FUNCAREA_END }
+};
+
+struct synaptics_funcarea clearpad_funcarea_array_0x1A[] = {
+	{
+		{ 0, 0, 719, 42 }, { 0, 0, 719, 42 },
+		SYN_FUNCAREA_INSENSIBLE, NULL
+	},
+	{
+		{ 0, 55, 719, 1334 }, { 0, 43, 719, 1336 },
+		SYN_FUNCAREA_POINTER, &pointer_data_0x1A
 	},
 	{ .func = SYN_FUNCAREA_END }
 };
 
 struct synaptics_funcarea *clearpad_funcarea_get(u8 module_id, u8 rev)
 {
-	return clearpad_funcarea_array;
+	struct synaptics_funcarea *funcarea = NULL;
+
+	pr_info("%s: module_id=0x%02x rev=0x%02x\n", __func__, module_id, rev);
+	switch (module_id) {
+	case 0x19:
+		funcarea = clearpad_funcarea_array_0x19;
+		break;
+	case 0x1A:
+	case 0xFF:
+		funcarea = clearpad_funcarea_array_0x1A;
+		break;
+	default:
+		funcarea = clearpad_funcarea_array;
+		break;
+	}
+
+	return funcarea;
 }
 
 /* Section: Charging */
 static int pm8921_therm_mitigation[] = {
-	1425,
+	1525,
 	825,
 	475,
 	325,
@@ -85,12 +129,10 @@ struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 	.safety_time		= 512,
 	.ttrkl_time		= 64,
 	.update_time		= 30000,
-	.update_time_at_low_bat	= 1000,
 	.max_voltage		= MAX_VOLTAGE_MV,
 	.min_voltage		= 3200,
 	.resume_voltage_delta	= 60,
 	.resume_soc		= 99,
-	.delta_soc		= 5,
 	.term_current		= 70,
 	.cold_temp		= 5,
 	.cool_temp		= 10,
@@ -98,10 +140,10 @@ struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 	.hot_temp		= 55,
 	.hysterisis_temp	= 3,
 	.temp_check_period	= 1,
-	.safe_current		= 1425,
-	.max_bat_chg_current	= 1425,
-	.cool_bat_chg_current	= 1425,
-	.warm_bat_chg_current	= 425,
+	.safe_current		= 1525,
+	.max_bat_chg_current	= 1525,
+	.cool_bat_chg_current	= 1525,
+	.warm_bat_chg_current	= 325,
 	.cool_bat_voltage	= 4200,
 	.warm_bat_voltage	= 4000,
 	.thermal_mitigation	= pm8921_therm_mitigation,
@@ -109,7 +151,6 @@ struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
 	.cold_thr		= PM_SMBC_BATT_TEMP_COLD_THR__HIGH,
 	.hot_thr		= PM_SMBC_BATT_TEMP_HOT_THR__HIGH,
 	.rconn_mohm		= 18,
-	.eoc_warm_batt		= true,
 };
 
 struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
@@ -122,7 +163,6 @@ struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
 	.default_rbatt_mohms	= 170,
 	.rconn_mohm		= 30,
 	.enable_fcc_learning	= 1,
-	.allow_soc_increase	= true,
 };
 
 /* Section: Gyro */
@@ -130,7 +170,7 @@ struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
 
 #define GYRO_ORIENTATION {  0,  1,  0,  -1,  0,  0,  0,  0,  1 }
 #define ACCEL_ORIENTATION { 1, 0,  0,  0,  1,  0,  0,  0,  1 }
-#define COMPASS_ORIENTATION {  -1, 0,  0,  0,  1,  0,  0,  0, -1 }
+#define COMPASS_ORIENTATION {  1, 0,  0,  0,  1,  0,  0,  0, 1 }
 #define PRESSURE_ORIENTATION {  1,  0,  0,  0,  1,  0,  0,  0,  1 }
 
 struct mpu3050_platform_data mpu_data = {
@@ -203,6 +243,7 @@ struct pm8xxx_keypad_platform_data *get_keypad_data(void)
 {
 	return &keypad_data;
 }
+
 static struct gpio_keys_button gpio_keys_buttons[] = {
 	{
 		.code = KEY_VOLUMEDOWN,
@@ -231,53 +272,17 @@ static struct gpio_keys_platform_data gpio_keys_pdata = {
 
 static struct platform_device gpio_keys_device = {
 	.name = "gpio-keys",
-	.id = 0,
 	.dev = { .platform_data = &gpio_keys_pdata },
-	.num_resources = 0,
-	.resource = NULL,
-};
-
-#define GPIO_SW_SIM_DETECTION		36
-
-static struct gpio_event_direct_entry gpio_sw_gpio_map[] = {
-	{PM8921_GPIO_PM_TO_SYS(GPIO_SW_SIM_DETECTION), SW_JACK_PHYSICAL_INSERT},
-};
-
-static struct gpio_event_input_info gpio_sw_gpio_info = {
-	.info.func = gpio_event_input_func,
-	.info.no_suspend = 1,
-	.flags = GPIOEDF_ACTIVE_HIGH,
-	.type = EV_SW,
-	.keymap = gpio_sw_gpio_map,
-	.keymap_size = ARRAY_SIZE(gpio_sw_gpio_map),
-};
-
-static struct gpio_event_info *pmic_keypad_info[] = {
-	&gpio_sw_gpio_info.info,
-};
-
-struct gpio_event_platform_data pmic_keypad_data = {
-	.name = "sim-detection",
-	.info = pmic_keypad_info,
-	.info_count = ARRAY_SIZE(pmic_keypad_info),
-};
-
-static struct platform_device pmic_keypad_device = {
-	.name = GPIO_EVENT_DEV_NAME,
-	.id = 0,
-	.dev = {.platform_data = &pmic_keypad_data},
 };
 
 static int __init input_devices_init(void)
 {
 	platform_device_register(&gpio_keys_device);
-	platform_device_register(&pmic_keypad_device);
 	return 0;
 }
 
 static void __exit input_devices_exit(void)
 {
-	platform_device_unregister(&pmic_keypad_device);
 }
 
 module_init(input_devices_init);
@@ -287,7 +292,7 @@ module_exit(input_devices_exit);
 #if defined(CONFIG_LEDS_AS3676)
 
 struct as3676_platform_data as3676_platform_data = {
-	.step_up_vtuning = 18,	/* 0 .. 31 uA on DCDC_FB */
+	.step_up_vtuning = 20,	/* 0 .. 31 uA on DCDC_FB */
 	.audio_speed_down = 1,	/* 0..3 resp. 0, 200, 400, 800ms */
 	.audio_speed_up = 4,	/* 0..7 resp. 0, 50, 100, 150,
 					200,250,400, 800ms */
@@ -301,72 +306,70 @@ struct as3676_platform_data as3676_platform_data = {
 	.caps_mounted_on_dcdc_feedback = 1,
 	.cp_control = 0x10,
 	.leds[0] = {
-		.name = "led_1-lcd",
+		.name = "lcd-backlight_1",
 		.on_charge_pump = 0,
-		.max_current_uA = 21000,
-		.startup_current_uA = 4000,
-		.use_dls = true,
+		.max_current_uA = 19950,
+		.startup_current_uA = 19950,
 	},
 	.leds[1] = {
-		.name = "led_2-lcd",
+		.name = "lcd-backlight_2",
 		.on_charge_pump = 0,
-		.max_current_uA = 21000,
-		.startup_current_uA = 4000,
-		.use_dls = true,
+		.max_current_uA = 19950,
+		.startup_current_uA = 19950,
 	},
 	.leds[2] = {
-		.name = "led_3-not-connected",
+		.name = "led3-not-connected",
 		.on_charge_pump = 0,
 		.max_current_uA = 0,
 	},
 	.leds[3] = {
-		.name = "led_4-not-connected",
-		.on_charge_pump = 0,
-		.max_current_uA = 0,
+		.name = "logo-backlight_1",
+		.on_charge_pump = 1,
+		.max_current_uA = 3000,
 	},
 	.leds[4] = {
-		.name = "led_5-not-connected",
-		.on_charge_pump = 0,
-		.max_current_uA = 0,
+		.name = "logo-backlight_2",
+		.on_charge_pump = 1,
+		.max_current_uA = 3000,
 	},
 	.leds[5] = {
-		.name = "led_6-not-connected",
-		.on_charge_pump = 0,
+		.name = "led6-not-connected",
+		.on_charge_pump = 1,
 		.max_current_uA = 0,
 	},
 	.leds[6] = {
-		.name = "led_7-rgb1-red",
+		.name = "pwr-red",
 		.on_charge_pump = 1,
-		.max_current_uA = 1000,
+		.max_current_uA = 2000,
 	},
 	.leds[7] = {
-		.name = "led_8-rgb2-green",
+		.name = "pwr-green",
 		.on_charge_pump = 1,
-		.max_current_uA = 1000,
+		.max_current_uA = 3300,
 	},
 	.leds[8] = {
-		.name = "led_9-rgb3-blue",
+		.name = "pwr-blue",
 		.on_charge_pump = 1,
-		.max_current_uA = 1000,
+		.max_current_uA = 2000,
 	},
 	.leds[9] = {
-		.name = "led_10-not-connected",
-		.on_charge_pump = 0,
+		.name = "led10-not-connected",
+		.on_charge_pump = 1,
 		.max_current_uA = 0,
 	},
 	.leds[10] = {
-		.name = "led_11-not-connected",
-		.on_charge_pump = 0,
+		.name = "led11-not-connected",
+		.on_charge_pump = 1,
 		.max_current_uA = 0,
 	},
 	.leds[11] = {
-		.name = "led_12-not-connected",
-		.on_charge_pump = 0,
+		.name = "led12-not-connected",
+		.on_charge_pump = 1,
 		.max_current_uA = 0,
 	},
 	.leds[12] = {
-		.name = "led_13-not-connected",
-		.on_charge_pump = 0,
+		.name = "led13-not-connected",
+		.on_charge_pump = 1,
 		.max_current_uA = 0,
 	},
 };
@@ -377,7 +380,7 @@ static int __init startup_rgb(char *str)
 	int vbus;
 	if (get_option(&str, &vbus)) {
 		if (vbus & VBUS_BIT)
-			as3676_platform_data.leds[6].startup_current_uA = 1000;
+			as3676_platform_data.leds[6].startup_current_uA = 2000;
 		return 0;
 	}
 	return -EINVAL;
@@ -416,26 +419,42 @@ static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
 	PM8XXX_GPIO_DISABLE(24),
 	PM8XXX_GPIO_DISABLE(25),
 	PM8XXX_GPIO_DISABLE(28),
-	PM8XXX_GPIO_DISABLE(31),
-	PM8XXX_GPIO_DISABLE(32),
 	PM8XXX_GPIO_DISABLE(35),
 	PM8XXX_GPIO_DISABLE(37),
-	PM8XXX_GPIO_DISABLE(40),
 	PM8XXX_GPIO_DISABLE(41),
 	PM8XXX_GPIO_DISABLE(44),
 
-	/* OTHERS */
 	PM8XXX_GPIO_INPUT(20,	PM_GPIO_PULL_UP_30),	/* VOLUME_DOWN_KEY */
 	PM8XXX_GPIO_INPUT(21,	PM_GPIO_PULL_UP_30),	/* VOLUME_UP_KEY */
-	PM8XXX_GPIO_OUTPUT(22,  0),			/* RF_ID_EN */
-	PM8XXX_GPIO_INPUT(26,	PM_GPIO_PULL_NO),	/* SD_CARD_DET_N */
-#if defined(CONFIG_NFC_PN544)
+	PM8XXX_GPIO_OUTPUT(22,	0),			/* RF_ID_EN */
+	PM8XXX_GPIO_INPUT(26,	PM_GPIO_PULL_DN),	/* SD_CARD_DET_N */
+#if defined(CONFIG_SEMC_FELICA_SUPPORT) && !defined(CONFIG_NFC_PN544)
+	/* FELICA_LOCK */
+	PM8XXX_GPIO_INIT(31, PM_GPIO_DIR_IN, PM_GPIO_OUT_BUF_CMOS, 0, \
+				PM_GPIO_PULL_NO, PM_GPIO_VIN_L17, \
+				PM_GPIO_STRENGTH_NO, \
+				PM_GPIO_FUNC_NORMAL, 0, 0),
+	/* FELICA_FF */
+	PM8XXX_GPIO_INIT(32, PM_GPIO_DIR_OUT, PM_GPIO_OUT_BUF_CMOS, 0, \
+				PM_GPIO_PULL_NO, PM_GPIO_VIN_L17, \
+				PM_GPIO_STRENGTH_LOW, \
+				PM_GPIO_FUNC_NORMAL, 0, 0),
+	/* FELICA_PON */
+	PM8XXX_GPIO_INIT(33, PM_GPIO_DIR_OUT, PM_GPIO_OUT_BUF_CMOS, 0, \
+				PM_GPIO_PULL_NO, PM_GPIO_VIN_S4, \
+				PM_GPIO_STRENGTH_LOW, \
+				PM_GPIO_FUNC_NORMAL, 0, 0),
+#elif !defined(CONFIG_SEMC_FELICA_SUPPORT) && defined(CONFIG_NFC_PN544)
+	PM8XXX_GPIO_DISABLE(31),
+	PM8XXX_GPIO_DISABLE(32),
 	/* NFC_EN */
 	PM8XXX_GPIO_INIT(33, PM_GPIO_DIR_OUT, PM_GPIO_OUT_BUF_OPEN_DRAIN, 0, \
 				PM_GPIO_PULL_NO, PM_GPIO_VIN_VPH, \
 				PM_GPIO_STRENGTH_LOW, \
 				PM_GPIO_FUNC_NORMAL, 0, 0),
 #else
+	PM8XXX_GPIO_DISABLE(31),
+	PM8XXX_GPIO_DISABLE(32),
 	PM8XXX_GPIO_DISABLE(33),
 #endif
 	/* WCD9310_RESET_N */
@@ -445,6 +464,11 @@ static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
 				PM_GPIO_FUNC_NORMAL, 0, 0),
 	PM8XXX_GPIO_INPUT(36,	PM_GPIO_PULL_UP_30),	/* SIM_DET_N */
 	PM8XXX_GPIO_INPUT(38,	PM_GPIO_PULL_NO),	/* PLUG_DET */
+	/* For CDB compatible  */
+	PM8XXX_GPIO_INIT(40, PM_GPIO_DIR_OUT, PM_GPIO_OUT_BUF_CMOS, 1, \
+				PM_GPIO_PULL_NO, PM_GPIO_VIN_S4, \
+				PM_GPIO_STRENGTH_LOW, \
+				PM_GPIO_FUNC_NORMAL, 0, 0),
 	/* OTG_OVP_CNTL */
 	PM8XXX_GPIO_INIT(42, PM_GPIO_DIR_OUT, PM_GPIO_OUT_BUF_CMOS, 1, \
 				PM_GPIO_PULL_NO, PM_GPIO_VIN_VPH, \
@@ -457,9 +481,11 @@ static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
 /* Initial PM8921 MPP configurations */
 static struct pm8xxx_mpp_init pm8921_mpps[] __initdata = {
 	/* External 5V regulator enable; shared by HDMI and USB_OTG switches. */
-	PM8XXX_MPP_INIT(4, D_OUTPUT, PM8921_MPP_DIG_LEVEL_S4, DOUT_CTRL_LOW),
+	PM8XXX_MPP_INIT(7, D_INPUT, PM8921_MPP_DIG_LEVEL_VPH, DIN_TO_INT),
 	PM8XXX_MPP_INIT(PM8XXX_AMUX_MPP_8, A_INPUT, PM8XXX_MPP_AIN_AMUX_CH8,
 								DOUT_CTRL_LOW),
+	PM8XXX_MPP_INIT(4, D_OUTPUT, PM8921_MPP_DIG_LEVEL_S4, DOUT_CTRL_LOW),
+
 };
 
 void __init pm8921_gpio_mpp_init(void)
@@ -568,7 +594,12 @@ VREG_CONSUMERS(L15) = {
 	REGULATOR_SUPPLY("8921_l15",		NULL),
 };
 VREG_CONSUMERS(L16) = {
-	REGULATOR_SUPPLY("8921_l16",            NULL),
+	REGULATOR_SUPPLY("8921_l16",		NULL),
+	REGULATOR_SUPPLY("cam_vaf",		"msm_camera_imx074.0"),
+	REGULATOR_SUPPLY("cam_vaf",		"msm_camera_ov2720.0"),
+#if defined(CONFIG_SEMC_CAM_MAIN_V4L2) || defined(CONFIG_SEMC_CAM_SUB_V4L2)
+	REGULATOR_SUPPLY("cam_vaf",		"4-001a"),
+#endif
 };
 VREG_CONSUMERS(L17) = {
 	REGULATOR_SUPPLY("8921_l17",		NULL),
@@ -964,7 +995,7 @@ msm_rpm_regulator_init_data[] __devinitdata = {
 	RPM_LDO(L12,	 0, 1, 0, 1200000, 1200000, "8921_s4", 0, 0),
 	RPM_LDO(L14,	 0, 1, 0, 1800000, 1800000, NULL,      0, 0),
 	RPM_LDO(L15,	 0, 1, 0, 1800000, 2950000, NULL,      0, 0),
-	RPM_LDO(L16,	 0, 1, 0, 3050000, 3050000, NULL,      0, 0),
+	RPM_LDO(L16,	 0, 1, 0, 2600000, 3000000, NULL,      0, 0),
 	RPM_LDO(L17,	 0, 1, 0, 1800000, 3000000, NULL,      0, 0),
 	RPM_LDO(L18,	 0, 1, 0, 1200000, 1200000, "8921_s4", 0, 0),
 	RPM_LDO(L21,	 0, 1, 0, 1900000, 1900000, "8921_s8", 0, 0),
@@ -1062,19 +1093,19 @@ static struct gpiomux_setting gsbi10 = {
 
 static struct gpiomux_setting gsbi12 = {
 	.func = GPIOMUX_FUNC_1,
-	.drv = GPIOMUX_DRV_2MA,
+	.drv = GPIOMUX_DRV_4MA,
 	.pull = GPIOMUX_PULL_NONE,
 };
 
 static struct gpiomux_setting cam_mclk0 = {
 	.func = GPIOMUX_FUNC_1,
-	.drv  = GPIOMUX_DRV_2MA,
+	.drv  = GPIOMUX_DRV_6MA,
 	.pull = GPIOMUX_PULL_NONE,
 };
 
 static struct gpiomux_setting cam_mclk1 = {
 	.func = GPIOMUX_FUNC_2,
-	.drv  = GPIOMUX_DRV_2MA,
+	.drv  = GPIOMUX_DRV_6MA,
 	.pull = GPIOMUX_PULL_NONE,
 };
 
@@ -1118,10 +1149,7 @@ static struct gpiomux_setting debug_uart_rx = {
 static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 	{ /* NC */
 		.gpio = 0,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* MCAM_RST_N */
 		.gpio = 1,
@@ -1158,33 +1186,21 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
 		},
 	},
-	{ /* NC */
+	{ /* Reserved (PON_VOLTAGE_SEL) */
 		.gpio = 6,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 7,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 8,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 9,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* ACCEL_INT */
 		.gpio = 10,
@@ -1249,6 +1265,15 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
 		},
 	},
+#if defined(CONFIG_SEMC_FELICA_SUPPORT) && !defined(CONFIG_NFC_PN544)
+	{ /* FELICIA_RFS */
+		.gpio = 19,
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_in,
+			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_in,
+		},
+	},
+#elif !defined(CONFIG_SEMC_FELICA_SUPPORT) && defined(CONFIG_NFC_PN544)
 	{ /* NFC_DWLD_EN */
 		.gpio = 19,
 		.settings = {
@@ -1256,6 +1281,12 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
 		},
 	},
+#else
+	{ /* NC */
+		.gpio = 19,
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
+	},
+#endif
 	{ /* I2C_DATA_CAM */
 		.gpio = 20,
 		.settings = {
@@ -1272,48 +1303,30 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 	},
 	{ /* NC */
 		.gpio = 22,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 23,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 24,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 25,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 
 	/* NOT CONFIGURED: 26-31 */
 
 	{ /* NC */
 		.gpio = 32,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 33,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* UART_TX_DFMS */
 		.gpio = 34,
@@ -1345,45 +1358,27 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 	},
 	{ /* NC */
 		.gpio = 38,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 39,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 40,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 41,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 42,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 43,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* I2C_DATA_SENS */
 		.gpio = 44,
@@ -1399,18 +1394,18 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gsbi12,
 		},
 	},
-	{ /* NC */
+	{ /* DEBUG_GPIO0 */
 		.gpio = 46,
 		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
+			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_low,
+			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
 		},
 	},
-	{ /* NC */
+	{ /* DEBUG_GPIO1 */
 		.gpio = 47,
 		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
+			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_low,
+			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
 		},
 	},
 	{ /* GYRO_FSYNC */
@@ -1429,10 +1424,7 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 	},
 	{ /* NC */
 		.gpio = 50,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* USB_OTG_EN */
 		.gpio = 51,
@@ -1443,24 +1435,15 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 	},
 	{ /* NC */
 		.gpio = 52,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
-	{ /* VIB_EN */
+	{ /* NC */
 		.gpio = 53,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_low,
-			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 54,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 55,
@@ -1475,10 +1458,7 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 
 	{ /* NC */
 		.gpio = 58,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* SLIMBUS1_MCLK */
 		.gpio = 59,
@@ -1503,10 +1483,7 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 
 	{ /* NC */
 		.gpio = 63,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* MHL_RST_N */
 		.gpio = 64,
@@ -1531,17 +1508,11 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 	},
 	{ /* NC */
 		.gpio = 67,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 68,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* GYRO_INT_N */
 		.gpio = 69,
@@ -1557,18 +1528,18 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gpio_2ma_pull_down_in,
 		},
 	},
-	{ /* NC */
+	{ /* UART_TX_FELICA */
 		.gpio = 71,
 		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
+			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_low,
+			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
 		},
 	},
-	{ /* NC */
+	{ /* UART_RX_FELICA */
 		.gpio = 72,
 		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
+			[GPIOMUX_ACTIVE] = &gpio_2ma_pull_down_in,
+			[GPIOMUX_SUSPENDED] = &gpio_2ma_pull_down_in,
 		},
 	},
 	{ /* I2C_DATA_PERI */
@@ -1587,132 +1558,83 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 	},
 	{ /* NC */
 		.gpio = 75,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 76,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 77,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 78,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
-	{ /* VIB_RSTB */
+	{ /* NC */
 		.gpio = 79,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_low,
-			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 80,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 81,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 82,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 
 	/* 83 not configured */
 
 	/* 84-88 configured in separate struct below */
 
-	{ /* CAMERA_AF_CE */
+	{ /* NC */
 		.gpio = 89,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_low,
-			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 90,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
-
-	/* 91 not configured */
+	{ /* NC */
+		.gpio = 91,
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
+	},
 
 	/* 92 not configured */
 
-	{ /* VIB_DETECT */
+	{ /* NC */
 		.gpio = 93,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_in,
-			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_in,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 94,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
-	{ /* RF_ID_EXTENSION */
+	{ /* NC */
 		.gpio = 95,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_low,
-			[GPIOMUX_SUSPENDED] = &gpio_2ma_no_pull_low,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 96,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 97,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 98,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 99,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* HDMI_DDCSCL */
 		.gpio = 100,
@@ -1738,7 +1660,7 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 
 	/* 103-105 not configured */
 
-	{ /* NFC_IRQ */
+	{ /* NFC_IRQ/FELICA_INT */
 		.gpio = 106,
 		.settings = {
 			[GPIOMUX_ACTIVE] = &gpio_2ma_no_pull_in,
@@ -1822,19 +1744,14 @@ static struct msm_gpiomux_config semc_blue_all_cfgs[] __initdata = {
 	},
 	{ /* NC */
 		.gpio = 150,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 	{ /* NC */
 		.gpio = 151,
-		.settings = {
-			[GPIOMUX_ACTIVE] = &unused_gpio,
-			[GPIOMUX_SUSPENDED] = &unused_gpio,
-		},
+		.settings = { [GPIOMUX_SUSPENDED] = &unused_gpio, },
 	},
 };
+
 
 static struct gpiomux_setting wcnss_5wire_suspend_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
@@ -1962,13 +1879,6 @@ static struct msm_gpiomux_config msm_camera_2d_configs[] = {
 		.settings	= {
 			[GPIOMUX_ACTIVE]	= &gsbi4,
 			[GPIOMUX_SUSPENDED]	= &gpio_2ma_pull_down_in,
-		},
-	},
-	{
-		.gpio		= 89,
-		.settings	= {
-			[GPIOMUX_ACTIVE]	= &gpio_2ma_no_pull_low,
-			[GPIOMUX_SUSPENDED]	= &gpio_2ma_no_pull_low,
 		},
 	},
 };
@@ -2184,18 +2094,19 @@ static struct msm_camera_device_platform_data msm_camera_csi_device_data[] = {
 		.is_vpe			= 0,
 		.cam_bus_scale_table	= &msm_camera_bus_client_pdata,
 	},
-        {
-               .ioclk.mclk_clk_rate = 24000000,
-               .ioclk.vfe_clk_rate  = 228570000,
-               .csid_core = 2,
-               .cam_bus_scale_table = &msm_camera_bus_client_pdata,
-        },
+	{
+		.ioclk.mclk_clk_rate = 24000000,
+		.ioclk.vfe_clk_rate  = 228570000,
+		.csid_core = 2,
+		.cam_bus_scale_table = &msm_camera_bus_client_pdata,
+	},
 };
 
 static struct camera_vreg_t msm_camera_back_cam_vreg[] = {
 	{ "cam_vana", REG_LDO, 2600000, 3000000, 85600 },
 	{ "cam_vio", REG_VS, 0, 0, 0 },
 	{ "cam_vdig", REG_LDO, 1200000, 1200000, 105000 },
+	{ "cam_vaf", REG_LDO, 2600000, 3000000, 300000 },
 };
 
 static struct camera_vreg_t msm_camera_front_cam_vreg[] = {
@@ -2208,7 +2119,6 @@ static struct gpio msm_camera_common_cam_gpio[] = {
 	{ 5, GPIOF_DIR_IN, "CAMIF_MCLK" },
 	{ 20, GPIOF_DIR_IN, "CAMIF_I2C_DATA" },
 	{ 21, GPIOF_DIR_IN, "CAMIF_I2C_CLK" },
-	{ 89, GPIOF_DIR_OUT, "CAM_AF" },
 };
 
 static struct gpio msm_camera_front_cam_gpio[] = {
@@ -2351,7 +2261,7 @@ struct msm_camera_board_info msm8960_camera_board_info = {
 static const struct semc_sensor_seq sensor_main_power_off[] = {
 	{ CAM_CLK, -1, 1 },
 	{ GPIO_RESET, 0, 1 },
-	{ GPIO_AF, -1, 0 },
+	{ CAM_VAF, -1, 0 },
 	{ CAM_VANA, -1, 1 },
 	{ CAM_VIO, -1, 1 },
 	{ CAM_VDIG, -1, 15 },
@@ -2362,7 +2272,7 @@ static const struct semc_sensor_seq sensor_main_power_on[] = {
 	{ CAM_VDIG, 1200, 1 },
 	{ CAM_VIO, 0, 1 },
 	{ CAM_VANA, 2800, 0 },
-	{ GPIO_AF, 1, 1 },
+	{ CAM_VAF, 2700, 1 },
 	{ GPIO_RESET, 1, 9 },
 	{ CAM_CLK, 0, 1 },
 	{ EXIT, 0, 0 },
@@ -2409,7 +2319,7 @@ const int semc_sensor_sub_subdev_code = V4L2_MBUS_FMT_SBGGR10_1X10;
 #endif
 
 int semc_usb_phy_init_seq[] = {
-	0x3C, 0x81, /* PARAMETER_OVERRIDE_B */
+	0x39, 0x81, /* PARAMETER_OVERRIDE_B */
 	0x24, 0x82, /* PARAMETER_OVERRIDE_C */
 	-1
 };
