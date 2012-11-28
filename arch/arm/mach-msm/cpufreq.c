@@ -86,6 +86,7 @@ static void set_cpu_work(struct work_struct *work)
 #endif
 
 unsigned int smooth_level = 99;
+int thermal_throttle_freq = 0;
 
 static int msm_cpufreq_target(struct cpufreq_policy *policy,
 				unsigned int target_freq,
@@ -118,6 +119,8 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 	}
 
 	table = cpufreq_frequency_get_table(policy->cpu);
+	//termal throttling
+	if(thermal_throttle_freq && thermal_throttle_freq < target_freq) target_freq = thermal_throttle_freq;
 	if (cpufreq_frequency_table_target(policy, table, target_freq, relation,
 			&index)) {
 		pr_err("cpufreq: invalid target_freq: %d\n", target_freq);
@@ -241,8 +244,6 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 	INIT_WORK(&cpu_work->work, set_cpu_work);
 	init_completion(&cpu_work->complete);
 #endif
-	policy->max = 1512000;
-	policy->min = 384000;
 
 	return 0;
 }

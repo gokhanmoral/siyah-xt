@@ -30,6 +30,7 @@ static int allowed_max_high = DEF_ALLOWED_MAX_HIGH;
 static int allowed_max_low = (DEF_ALLOWED_MAX_HIGH - 10);
 static int allowed_max_freq = DEF_ALLOWED_MAX_FREQ;
 static int check_interval_ms = DEF_THERMAL_CHECK_MS;
+extern int thermal_throttle_freq;
 
 module_param(allowed_max_high, int, 0);
 module_param(allowed_max_freq, int, 0);
@@ -45,9 +46,10 @@ static int update_cpu_max_freq(struct cpufreq_policy *cpu_policy,
 	if (!cpu_policy)
 		return -EINVAL;
 
-	cpufreq_verify_within_limits(cpu_policy,
-				cpu_policy->min, max_freq);
-	cpu_policy->user_policy.max = max_freq;
+//	cpufreq_verify_within_limits(cpu_policy,
+//				cpu_policy->min, max_freq);
+//	cpu_policy->user_policy.max = max_freq;
+	thermal_throttle_freq = max_freq;
 
 	ret = cpufreq_update_policy(cpu);
 	if (!ret)
@@ -87,12 +89,12 @@ static void check_temp(struct work_struct *work)
 				update_policy = 1;
 				max_freq = allowed_max_freq;
 			} else {
-				pr_debug("msm_thermal: policy max for cpu %d "
+				pr_debug("msm_thermal:  policy max for cpu %d "
 					 "already < allowed_max_freq\n", cpu);
 			}
 		} else if (temp < allowed_max_low) {
 			if (cpu_policy->max < cpu_policy->cpuinfo.max_freq) {
-				max_freq = cpu_policy->cpuinfo.max_freq;
+				max_freq = 0;
 				update_policy = 1;
 			} else {
 				pr_debug("msm_thermal: policy max for cpu %d "
