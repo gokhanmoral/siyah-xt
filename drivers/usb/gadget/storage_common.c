@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2003-2008 Alan Stern
  * Copyeight (C) 2009 Samsung Electronics
+ * Copyright (C) 2011-2012 Sony Ericsson Mobile Communications AB.
+ * Copyright (C) 2012 Sony Mobile Communications AB.
  * Author: Michal Nazarewicz (mina86@mina86.com)
  *
  * This program is free software; you can redistribute it and/or modify
@@ -182,6 +184,11 @@ struct interrupt_data {
 #define ASC(x)		((u8) ((x) >> 8))
 #define ASCQ(x)		((u8) (x))
 
+#define RANDOM_WRITE_COUNT_TO_BE_FLUSHED (15)
+/* VPD(Vital product data) Page Name */
+#define VPD_SUPPORTED_VPD_PAGES		0x00
+#define VPD_UNIT_SERIAL_NUMBER		0x80
+#define VPD_DEVICE_IDENTIFICATION	0x83
 
 /*-------------------------------------------------------------------------*/
 
@@ -190,6 +197,9 @@ struct fsg_lun {
 	struct file	*filp;
 	loff_t		file_length;
 	loff_t		num_sectors;
+
+	u8		random_write_count;
+	loff_t		last_offset;
 
 	unsigned int	initially_ro:1;
 	unsigned int	ro:1;
@@ -207,6 +217,18 @@ struct fsg_lun {
 	unsigned int	blkbits;	/* Bits of logical block size of bound block device */
 	unsigned int	blksize;	/* logical block size of bound block device */
 	struct device	dev;
+	char		*lun_filename;
+#ifdef CONFIG_USB_MSC_PROFILING
+	spinlock_t	lock;
+	struct {
+
+		unsigned long rbytes;
+		unsigned long wbytes;
+		ktime_t rtime;
+		ktime_t wtime;
+	} perf;
+
+#endif
 };
 
 #define fsg_lun_is_open(curlun)	((curlun)->filp != NULL)
@@ -221,6 +243,9 @@ static struct fsg_lun *fsg_lun_from_dev(struct device *dev)
 #define EP0_BUFSIZE	256
 #define DELAYED_STATUS	(EP0_BUFSIZE + 999)	/* An impossibly large value */
 
+#ifdef CONFIG_USB_CSW_HACK
+#define fsg_num_buffers		4
+#else
 #ifdef CONFIG_USB_GADGET_DEBUG_FILES
 
 static unsigned int fsg_num_buffers = CONFIG_USB_GADGET_STORAGE_NUM_BUFFERS;
@@ -236,6 +261,7 @@ MODULE_PARM_DESC(num_buffers, "Number of pipeline buffers");
 #define fsg_num_buffers	CONFIG_USB_GADGET_STORAGE_NUM_BUFFERS
 
 #endif /* CONFIG_USB_DEBUG */
+#endif /* CONFIG_USB_CSW_HACK */
 
 /* check if fsg_num_buffers is within a valid range */
 static inline int fsg_num_buffers_validate(void)
@@ -724,6 +750,9 @@ out:
 static void fsg_lun_close(struct fsg_lun *curlun)
 {
 	if (curlun->filp) {
+		curlun->last_offset = 0;
+		curlun->random_write_count = 0;
+
 		LDBG(curlun, "close backing file\n");
 		fput(curlun->filp);
 		curlun->filp = NULL;
@@ -740,10 +769,18 @@ static void fsg_lun_close(struct fsg_lun *curlun)
 static int fsg_lun_fsync_sub(struct fsg_lun *curlun)
 {
 	struct file	*filp = curlun->filp;
+	int rc = 0;
 
 	if (curlun->ro || !filp)
 		return 0;
-	return vfs_fsync(filp, 1);
+
+	rc = vfs_fsync(filp, 1);
+	if (!rc) {
+		curlun->last_offset = 0;
+		curlun->random_write_count = 0;
+	}
+
+	return rc;
 }
 
 static void store_cdrom_address(u8 *dest, int msf, u32 addr)
@@ -786,6 +823,43 @@ static ssize_t fsg_show_nofua(struct device *dev, struct device_attribute *attr,
 	return sprintf(buf, "%u\n", curlun->nofua);
 }
 
+#ifdef CONFIG_USB_MSC_PROFILING
+static ssize_t fsg_show_perf(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	struct fsg_lun	*curlun = fsg_lun_from_dev(dev);
+	unsigned long rbytes, wbytes;
+	int64_t rtime, wtime;
+
+	spin_lock(&curlun->lock);
+	rbytes = curlun->perf.rbytes;
+	wbytes = curlun->perf.wbytes;
+	rtime = ktime_to_us(curlun->perf.rtime);
+	wtime = ktime_to_us(curlun->perf.wtime);
+	spin_unlock(&curlun->lock);
+
+	return snprintf(buf, PAGE_SIZE, "Write performance :"
+					"%lu bytes in %lld microseconds\n"
+					"Read performance :"
+					"%lu bytes in %lld microseconds\n",
+					wbytes, wtime, rbytes, rtime);
+}
+static ssize_t fsg_store_perf(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct fsg_lun	*curlun = fsg_lun_from_dev(dev);
+	int value;
+
+	sscanf(buf, "%d", &value);
+	if (!value) {
+		spin_lock(&curlun->lock);
+		memset(&curlun->perf, 0, sizeof(curlun->perf));
+		spin_unlock(&curlun->lock);
+	}
+
+	return count;
+}
+#endif
 static ssize_t fsg_show_file(struct device *dev, struct device_attribute *attr,
 			     char *buf)
 {
@@ -872,10 +946,16 @@ static ssize_t fsg_store_file(struct device *dev, struct device_attribute *attr,
 	struct rw_semaphore	*filesem = dev_get_drvdata(dev);
 	int		rc = 0;
 
+
+#ifndef CONFIG_USB_ANDROID_MASS_STORAGE
+	/* disabled in android because we need to allow closing the backing file
+	 * if the media was removed
+	 */
 	if (curlun->prevent_medium_removal && fsg_lun_is_open(curlun)) {
 		LDBG(curlun, "eject attempt prevented\n");
 		return -EBUSY;				/* "Door is locked" */
 	}
+#endif
 
 	/* Remove a trailing newline */
 	if (count > 0 && buf[count-1] == '\n')
@@ -886,14 +966,28 @@ static ssize_t fsg_store_file(struct device *dev, struct device_attribute *attr,
 	if (fsg_lun_is_open(curlun)) {
 		fsg_lun_close(curlun);
 		curlun->unit_attention_data = SS_MEDIUM_NOT_PRESENT;
+		kfree(curlun->lun_filename);
+		curlun->lun_filename = NULL;
 	}
 
 	/* Load new medium */
 	if (count > 0 && buf[0]) {
 		rc = fsg_lun_open(curlun, buf);
-		if (rc == 0)
-			curlun->unit_attention_data =
+		if (rc == 0) {
+			kfree(curlun->lun_filename);
+			curlun->lun_filename = kmalloc(count+1, GFP_KERNEL);
+			if (!curlun->lun_filename) {
+				rc = -ENOMEM;
+				fsg_lun_close(curlun);
+				curlun->unit_attention_data =
+					SS_MEDIUM_NOT_PRESENT;
+			} else {
+				memcpy(curlun->lun_filename, buf, count);
+				curlun->lun_filename[count] = '\0';
+				curlun->unit_attention_data =
 					SS_NOT_READY_TO_READY_TRANSITION;
+			}
+		}
 	}
 	up_write(filesem);
 	return (rc < 0 ? rc : count);

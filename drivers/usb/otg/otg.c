@@ -2,6 +2,7 @@
  * otg.c -- USB OTG utility code
  *
  * Copyright (C) 2004 Texas Instruments
+ * Copyright (C) 2012 Sony Mobile Communications AB.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -95,8 +96,27 @@ const char *otg_state_string(enum usb_otg_state state)
 		return "b_wait_acon";
 	case OTG_STATE_B_HOST:
 		return "b_host";
+	case OTG_STATE_MHL_DETECTED:
+		return "mhl_detected";
+	case OTG_STATE_MHL_CONNECTED:
+		return "mhl_connected";
 	default:
 		return "UNDEFINED";
 	}
 }
 EXPORT_SYMBOL(otg_state_string);
+
+int otg_send_event(enum usb_otg_event event)
+{
+	struct usb_phy *phy = usb_get_transceiver();
+	int ret = -ENOTSUPP;
+
+	if (phy && phy->otg && phy->otg->send_event)
+		ret = phy->otg->send_event(phy->otg, event);
+
+	if (phy)
+		usb_put_transceiver(phy);
+
+	return ret;
+}
+EXPORT_SYMBOL(otg_send_event);
